@@ -1,0 +1,39 @@
+{
+    "name": "spec-guard-mcp",
+    "version": "0.1.0",
+    "description": "Local MCP server exposing Spec-Driven Development (SDD) resources and deterministic Git diff guardrails.",
+    "type": "module",
+    "main": "./dist/index.js",
+    "bin": {
+        "spec-guard-mcp": "./dist/index.js"
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "scripts": {
+        "build": "tsc && chmod +x dist/index.js",
+        "dev": "tsc --watch",
+        "inspector": "npx @modelcontextprotocol/inspector node dist/index.js",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "prepublishOnly": "npm run build && npm test"
+    },
+    "keywords": [
+        "mcp",
+        "model-context-protocol",
+        "spec-driven-development",
+        "speckit",
+        "architecture-guardrails"
+    ],
+    "author": "",
+    "license": "MIT",
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.32.1",
+        "gray-matter": "^4.0.3",
+        "zod": "^4.6.7"
+    }
+}
