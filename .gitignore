@@ -2,3 +2,7 @@
 .specify
 /node_modules
 .DS_Store
+dist/
+coverage/
+*.tgz
+/specs
