@@ -23,3 +23,48 @@ export interface ServerConfig {
   version: string;
   shutdownTimeoutMs: number;
 }
+
+export interface WorkspaceMetadata {
+  rootPath: string;
+  hasGit: boolean;
+  hasSpecify: boolean;
+  specifyPath: string | null;
+  constitutionPath: string | null;
+  specsPath: string | null;
+  isValid: boolean;
+  error?: string;
+  warnings: string[];
+}
+
+export type ViolationSeverity = "error" | "warning";
+
+export interface DiffViolation {
+  ruleId: string;
+  category: string;
+  file: string;
+  line?: number;
+  hunk?: string;
+  severity: ViolationSeverity;
+  message: string;
+  remediation?: string;
+}
+
+export type TaskStatus = "completed" | "pending" | "in_progress" | "failed";
+
+export interface TaskVerificationResult {
+  taskId: string;
+  description: string;
+  status: TaskStatus;
+  line?: number;
+  details?: string;
+}
+
+export type RuleSeverity = "mandatory" | "recommended";
+
+export interface ConstitutionRule {
+  id: string;
+  category: string;
+  title: string;
+  statement: string;
+  severity: RuleSeverity;
+}
