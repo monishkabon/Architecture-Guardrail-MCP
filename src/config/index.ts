@@ -9,3 +9,5 @@ export const DEFAULT_SERVER_CONFIG: ServerConfig = {
   version: SERVER_VERSION,
   shutdownTimeoutMs: DEFAULT_SHUTDOWN_TIMEOUT_MS,
 };
+
+export * from "./defaults.js";
