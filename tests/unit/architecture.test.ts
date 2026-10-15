@@ -61,4 +61,20 @@ describe("Repository Architecture & Directory Boundaries (User Story 4)", () => 
       ).toBe(false);
     }
   });
+
+  it("should strictly forbid @modelcontextprotocol/sdk imports across src/utils/", () => {
+    const utilsDir = path.join(projectRoot, "src/utils");
+    const utilFiles = fs.readdirSync(utilsDir).filter((f) => f.endsWith(".ts") || f.endsWith(".js"));
+    expect(utilFiles.length).toBeGreaterThan(0);
+
+    const protocolSdk = ["@modelcontextprotocol", "sdk"].join("/");
+
+    for (const file of utilFiles) {
+      const content = fs.readFileSync(path.join(utilsDir, file), "utf-8");
+      expect(
+        content.includes(protocolSdk),
+        `File src/utils/${file} violates pure engine boundaries by referencing ${protocolSdk}`
+      ).toBe(false);
+    }
+  });
 });
