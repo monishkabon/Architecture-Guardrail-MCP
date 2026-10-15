@@ -7,6 +7,7 @@ import { execFile as execFileCallback } from "node:child_process";
 import {
   getCurrentBranch,
   getStagedFiles,
+  getWorkingTreeFiles,
   getWorkingTreeStatus,
   getStagedDiff,
 } from "../../src/utils/git.js";
@@ -87,13 +88,13 @@ describe("Git Wrapper Utilities (src/utils/git.ts)", () => {
     });
   });
 
-  describe("getWorkingTreeStatus", () => {
+  describe("getWorkingTreeFiles", () => {
     it("returns empty array in clean repository", async () => {
-      const status = await getWorkingTreeStatus(tempDir);
+      const status = await getWorkingTreeFiles(tempDir);
       expect(status).toEqual([]);
     });
 
-    it("returns untracked and modified file paths", async () => {
+    it("returns untracked and modified file paths using getWorkingTreeFiles and getWorkingTreeStatus", async () => {
       // Commit one file
       await fs.writeFile(path.join(tempDir, "committed.txt"), "first line\n");
       await execFile("git", ["add", "committed.txt"], { cwd: tempDir });
@@ -105,27 +106,32 @@ describe("Git Wrapper Utilities (src/utils/git.ts)", () => {
       // Create an untracked file
       await fs.writeFile(path.join(tempDir, "untracked.ts"), "const x = 10;\n");
 
-      const status = await getWorkingTreeStatus(tempDir);
+      const status = await getWorkingTreeFiles(tempDir);
       expect(status).toHaveLength(2);
       expect(status.some((f) => f.includes("committed.txt"))).toBe(true);
       expect(status.some((f) => f.includes("untracked.ts"))).toBe(true);
+
+      const legacyStatus = await getWorkingTreeStatus(tempDir);
+      expect(legacyStatus).toEqual(status);
     });
   });
 
   describe("getStagedDiff", () => {
-    it("returns empty diff and truncated=false when no files are staged", async () => {
+    it("returns empty diff, empty stagedFiles, and truncated=false when no files are staged", async () => {
       const result = await getStagedDiff(tempDir);
       expect(result.diff).toBe("");
       expect(result.truncated).toBe(false);
+      expect(result.stagedFiles).toEqual([]);
     });
 
-    it("returns staged unified diff for staged changes", async () => {
+    it("returns staged unified diff and stagedFiles for staged changes", async () => {
       await fs.writeFile(path.join(tempDir, "hello.txt"), "console.error('safe');\n");
       await execFile("git", ["add", "hello.txt"], { cwd: tempDir });
 
       const result = await getStagedDiff(tempDir);
       expect(result.diff).toContain("+console.error('safe');");
       expect(result.truncated).toBe(false);
+      expect(result.stagedFiles).toEqual(["hello.txt"]);
     });
 
     it("truncates diff when diff length exceeds maxChars", async () => {
