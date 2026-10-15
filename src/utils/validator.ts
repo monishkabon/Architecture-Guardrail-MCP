@@ -4,7 +4,10 @@
  * against default forbidden patterns, custom rules, and architectural boundaries.
  */
 
-import { FORBIDDEN_STDOUT_PATTERNS } from "../config/defaults.js";
+import {
+  DEFAULT_FORBIDDEN_PATTERNS,
+  FORBIDDEN_STDOUT_PATTERNS,
+} from "../config/defaults.js";
 import type {
   AddedDiffLine,
   DiffValidationResult,
@@ -91,16 +94,18 @@ export function extractAddedLinesFromDiff(rawDiff: string): AddedDiffLine[] {
 }
 
 /**
- * Evaluates added lines in git diff against default forbidden stdout emissions,
- * custom constitutional regex patterns, and architectural boundaries.
+ * Evaluates unified git diff content against default forbidden patterns,
+ * custom constitutional regex rules, and architectural boundary rules.
  */
-export function validateDiffContent(params: {
-  rawDiff: string;
+export function evaluateUnifiedDiff(params: {
+  diff?: string;
+  rawDiff?: string;
   branch: string;
   customRules?: ForbiddenPatternRule[];
   truncated?: boolean;
 }): DiffValidationResult {
-  const addedLines = extractAddedLinesFromDiff(params.rawDiff);
+  const diffContent = params.diff ?? params.rawDiff ?? "";
+  const addedLines = extractAddedLinesFromDiff(diffContent);
   const violations: DiffViolation[] = [];
 
   const protocolSdkPackage = "@modelcontextprotocol" + "/sdk";
@@ -108,8 +113,8 @@ export function validateDiffContent(params: {
   for (const addedLine of addedLines) {
     const { file, line, content } = addedLine;
 
-    // 1. Default forbidden patterns (stdout emissions in server codebase)
-    for (const pattern of FORBIDDEN_STDOUT_PATTERNS) {
+    // 1. Default forbidden patterns (stdout emissions and exec in server codebase)
+    for (const pattern of DEFAULT_FORBIDDEN_PATTERNS) {
       if (content.includes(pattern)) {
         violations.push({
           ruleId: "FORBIDDEN_STDOUT",
@@ -118,8 +123,8 @@ export function validateDiffContent(params: {
           line,
           hunk: content,
           severity: "error",
-          message: `Standard output emission forbidden (${pattern}). Use console.error() instead.`,
-          remediation: `Replace ${pattern} with console.error() or route diagnostics to stderr.`,
+          message: `Forbidden pattern detected (${pattern}).`,
+          remediation: `Remove or replace ${pattern} with compliant alternatives.`,
         });
       }
     }
@@ -152,7 +157,7 @@ export function validateDiffContent(params: {
       file.startsWith("src/utils/") || file.includes("/src/utils/");
     if (isUtilsFile && content.includes(protocolSdkPackage)) {
       violations.push({
-        ruleId: "ARCHITECTURAL_BOUNDARY_UTILS",
+        ruleId: "BOUNDARY_NO_MCP_SDK_IN_UTILS",
         category: "Architectural Boundaries",
         file,
         line,
@@ -167,9 +172,15 @@ export function validateDiffContent(params: {
 
   const errorCount = violations.filter((v) => v.severity === "error").length;
   const warningCount = violations.filter((v) => v.severity === "warning").length;
+  const passed = errorCount === 0;
+
+  const summaryText = passed
+    ? `Diff validation passed with 0 violations across ${addedLines.length} added lines.`
+    : `Diff validation failed with ${errorCount} error(s) and ${warningCount} warning(s) across ${addedLines.length} added lines.`;
 
   return {
-    isValid: errorCount === 0,
+    isValid: passed,
+    passed,
     violations,
     checkedLinesCount: addedLines.length,
     summary: {
@@ -177,6 +188,12 @@ export function validateDiffContent(params: {
       errorCount,
       warningCount,
     },
+    summaryText,
     truncated: params.truncated ?? false,
   };
 }
+
+/**
+ * Backwards compatibility alias for evaluateUnifiedDiff.
+ */
+export const validateDiffContent = evaluateUnifiedDiff;

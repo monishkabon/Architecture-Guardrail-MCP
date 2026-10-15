@@ -22,6 +22,11 @@ export const FORBIDDEN_STDOUT_PATTERNS = [
   ["process", "stdout", "write"].join("."),
 ] as const;
 
+export const DEFAULT_FORBIDDEN_PATTERNS = [
+  ...FORBIDDEN_STDOUT_PATTERNS,
+  ["child_process", "exec"].join("."),
+] as const;
+
 export interface SpecKitDefaults {
   readonly defaultSpecifyDir: string;
   readonly defaultSpecsDir: string;

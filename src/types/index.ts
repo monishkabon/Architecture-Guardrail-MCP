@@ -58,6 +58,7 @@ export interface TaskItem {
   line?: number;
   referencedFiles: string[];
   fileExistence: Record<string, boolean>;
+  missingFiles?: string[];
   details?: string;
 }
 
@@ -84,6 +85,7 @@ export interface ConstitutionRule {
 export interface GitDiffResult {
   diff: string;
   truncated: boolean;
+  stagedFiles?: string[];
 }
 
 export interface ForbiddenPatternRule {
@@ -97,6 +99,8 @@ export interface ForbiddenPatternRule {
 export interface ParsedConstitution {
   rules: ForbiddenPatternRule[];
   rawContent: string;
+  cleanMarkdown?: string;
+  protectedPaths?: string[];
   frontmatter?: Record<string, unknown>;
 }
 
@@ -108,6 +112,7 @@ export interface AddedDiffLine {
 
 export interface DiffValidationResult {
   isValid: boolean;
+  passed?: boolean;
   violations: DiffViolation[];
   checkedLinesCount: number;
   summary: {
@@ -115,5 +120,6 @@ export interface DiffValidationResult {
     errorCount: number;
     warningCount: number;
   };
+  summaryText?: string;
   truncated?: boolean;
 }
