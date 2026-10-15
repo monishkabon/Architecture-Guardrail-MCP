@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import {
   extractAddedLinesFromDiff,
+  evaluateUnifiedDiff,
   validateDiffContent,
 } from "../../src/utils/validator.js";
 import type { ForbiddenPatternRule } from "../../src/types/index.js";
@@ -104,17 +105,78 @@ new file mode 100644
 +export const helper = 1;
 `;
 
-      const result = validateDiffContent({
-        rawDiff: mcpImportInUtilsDiff,
+      const result = evaluateUnifiedDiff({
+        diff: mcpImportInUtilsDiff,
         branch: "feature/test",
       });
 
       expect(result.isValid).toBe(false);
-      const boundaryViolation = result.violations.find((v) => v.ruleId === "ARCHITECTURAL_BOUNDARY_UTILS");
+      expect(result.passed).toBe(false);
+      const boundaryViolation = result.violations.find((v) => v.ruleId === "BOUNDARY_NO_MCP_SDK_IN_UTILS");
       expect(boundaryViolation).toBeDefined();
       expect(boundaryViolation?.file).toBe("src/utils/helper.ts");
+      expect(boundaryViolation?.line).toBe(1);
       expect(boundaryViolation?.severity).toBe("error");
       expect(boundaryViolation?.message).toContain("src/utils/");
+      expect(result.summaryText).toContain("Diff validation failed");
+    });
+
+    it("detects child_process.exec violations in DEFAULT_FORBIDDEN_PATTERNS with exact line number", () => {
+      const execDiff = `diff --git a/src/runner.ts b/src/runner.ts
+--- a/src/runner.ts
++++ b/src/runner.ts
+@@ -10,3 +10,4 @@
+  const a = 1;
++ child_process.exec("rm -rf /");
+  const b = 2;
+`;
+
+      const result = evaluateUnifiedDiff({
+        diff: execDiff,
+        branch: "main",
+      });
+
+      expect(result.isValid).toBe(false);
+      expect(result.passed).toBe(false);
+      const execViolation = result.violations.find((v) => v.hunk?.includes("child_process.exec"));
+      expect(execViolation).toBeDefined();
+      expect(execViolation?.line).toBe(11);
+      expect(execViolation?.file).toBe("src/runner.ts");
+    });
+
+    it("detects custom NO_RAW_SQL_DROP rule violations with exact line number", () => {
+      const customRules: ForbiddenPatternRule[] = [
+        {
+          id: "NO_RAW_SQL_DROP",
+          pattern: "DROP\\s+TABLE",
+          regex: /DROP\s+TABLE/,
+          description: "Direct SQL DROP statements are prohibited",
+          severity: "error",
+        },
+      ];
+
+      const dropDiff = `diff --git a/src/db.ts b/src/db.ts
+--- a/src/db.ts
++++ b/src/db.ts
+@@ -20,2 +20,4 @@
+  const query = "SELECT * FROM users";
++ const dropQuery = "DROP TABLE users";
++ await db.run(dropQuery);
+`;
+
+      const result = evaluateUnifiedDiff({
+        diff: dropDiff,
+        branch: "main",
+        customRules,
+      });
+
+      expect(result.isValid).toBe(false);
+      expect(result.passed).toBe(false);
+      const dropViolation = result.violations.find((v) => v.ruleId === "NO_RAW_SQL_DROP");
+      expect(dropViolation).toBeDefined();
+      expect(dropViolation?.file).toBe("src/db.ts");
+      expect(dropViolation?.line).toBe(21);
+      expect(dropViolation?.message).toContain("DROP statements are prohibited");
     });
 
     it("permits @modelcontextprotocol/sdk import outside src/utils/ (e.g. in src/server.ts)", () => {
@@ -126,15 +188,16 @@ new file mode 100644
  export const server = new McpServer();
 `;
 
-      const result = validateDiffContent({
-        rawDiff: mcpImportInServerDiff,
+      const result = evaluateUnifiedDiff({
+        diff: mcpImportInServerDiff,
         branch: "main",
       });
 
       // No boundary violation should occur outside src/utils/
-      const boundaryViolation = result.violations.find((v) => v.ruleId === "ARCHITECTURAL_BOUNDARY_UTILS");
+      const boundaryViolation = result.violations.find((v) => v.ruleId === "BOUNDARY_NO_MCP_SDK_IN_UTILS");
       expect(boundaryViolation).toBeUndefined();
       expect(result.isValid).toBe(true);
+      expect(result.passed).toBe(true);
     });
 
     it("evaluates custom constitution regex rules", () => {
@@ -156,20 +219,22 @@ new file mode 100644
  return res;
 `;
 
-      const result = validateDiffContent({
-        rawDiff: evalDiff,
+      const result = evaluateUnifiedDiff({
+        diff: evalDiff,
         branch: "main",
         customRules,
       });
 
       expect(result.isValid).toBe(false);
+      expect(result.passed).toBe(false);
       const evalViolation = result.violations.find((v) => v.ruleId === "NO_EVAL");
       expect(evalViolation).toBeDefined();
       expect(evalViolation?.file).toBe("src/calc.ts");
+      expect(evalViolation?.line).toBe(1);
       expect(evalViolation?.message).toContain("eval()");
     });
 
-    it("returns isValid=true for completely compliant diff", () => {
+    it("returns isValid=true and passed=true for completely compliant diff", () => {
       const cleanDiff = `diff --git a/src/clean.ts b/src/clean.ts
 --- a/src/clean.ts
 +++ b/src/clean.ts
@@ -179,15 +244,17 @@ new file mode 100644
 +}
 `;
 
-      const result = validateDiffContent({
-        rawDiff: cleanDiff,
+      const result = evaluateUnifiedDiff({
+        diff: cleanDiff,
         branch: "main",
       });
 
       expect(result.isValid).toBe(true);
+      expect(result.passed).toBe(true);
       expect(result.violations).toHaveLength(0);
       expect(result.summary.errorCount).toBe(0);
       expect(result.checkedLinesCount).toBe(3);
+      expect(result.summaryText).toContain("Diff validation passed with 0 violations");
     });
   });
 

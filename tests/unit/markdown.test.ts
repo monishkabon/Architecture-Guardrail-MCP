@@ -2,7 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import {
+  stripTokenNoise,
   stripMarkdownNoise,
+  parseConstitutionFile,
   parseConstitution,
   parseTasksFile,
 } from "../../src/utils/markdown.js";
@@ -49,23 +51,38 @@ describe("Markdown Utilities (src/utils/markdown.ts)", () => {
       expect(stripped).toBe("Line with trailing spaces\nAnother line");
     });
 
-    it("truncates content when maxChars is provided", () => {
-      const raw = "A".repeat(500);
-      const stripped = stripMarkdownNoise(raw, 100);
-      expect(stripped.length).toBeLessThanOrEqual(150);
-      expect(stripped).toContain("[Content truncated");
+    it("strips HTML comments, badges, and collapses whitespace using stripTokenNoise", () => {
+      const raw = [
+        "# My Project <!-- comment -->",
+        "![Badge](https://img.shields.io/badge/status-active-green)",
+        "",
+        "",
+        "",
+        "Main paragraph.",
+      ].join("\n");
+      const stripped = stripTokenNoise(raw);
+      expect(stripped).not.toContain("<!-- comment -->");
+      expect(stripped).not.toContain("shields.io");
+      expect(stripped).toBe("# My Project\n\nMain paragraph.");
     });
   });
 
-  describe("parseConstitution", () => {
-    it("parses custom forbidden regex rules from constitution bullet lists", async () => {
+  describe("parseConstitution & parseConstitutionFile", () => {
+    it("parses custom forbidden regex rules including NO_RAW_SQL_DROP from constitution.md", async () => {
       const constitutionPath = path.join(
         mockRepoPath,
         ".specify/memory/constitution.md"
       );
-      const result = await parseConstitution(constitutionPath);
+      const result = await parseConstitutionFile(constitutionPath);
 
-      expect(result.rules.length).toBeGreaterThanOrEqual(3);
+      expect(result.rules.length).toBeGreaterThanOrEqual(4);
+
+      const noDropRule = result.rules.find((r) => r.id === "NO_RAW_SQL_DROP");
+      expect(noDropRule).toBeDefined();
+      expect(noDropRule?.pattern).toBe("DROP\\s+TABLE");
+      expect(noDropRule?.regex?.test("DROP TABLE users;")).toBe(true);
+      expect(noDropRule?.regex?.test("SELECT * FROM users;")).toBe(false);
+      expect(noDropRule?.description).toContain("prohibited");
 
       const noEvalRule = result.rules.find((r) => r.id === "NO_EVAL");
       expect(noEvalRule).toBeDefined();
@@ -90,6 +107,55 @@ describe("Markdown Utilities (src/utils/markdown.ts)", () => {
       );
       const result = await parseConstitution(constitutionPath);
       expect(result.rawContent).toContain("# Mock Project Constitution");
+    });
+
+    it("extracts YAML frontmatter when present in markdown files", async () => {
+      const tempConstitution = path.join(mockRepoPath, ".specify/memory/temp-frontmatter.md");
+      const sample = [
+        "---",
+        "title: Test Constitution",
+        "version: 1.2.3",
+        "---",
+        "# Title",
+        "",
+        "## Forbidden Patterns",
+        "- `NO_ALERT`: `alert\\(` — Browser alert is forbidden",
+      ].join("\n");
+
+      await fs.writeFile(tempConstitution, sample, "utf-8");
+      try {
+        const result = await parseConstitution(tempConstitution);
+        expect(result.frontmatter).toBeDefined();
+        expect(result.frontmatter?.title).toBe("Test Constitution");
+        expect(result.frontmatter?.version).toBe("1.2.3");
+        expect(result.rules).toHaveLength(1);
+        expect(result.rules[0].id).toBe("NO_ALERT");
+      } finally {
+        await fs.rm(tempConstitution, { force: true });
+      }
+    });
+
+    it("parses custom ForbiddenPatternRule items exclusively under ## Forbidden Patterns heading", async () => {
+      const tempConstitution = path.join(mockRepoPath, ".specify/memory/temp-heading.md");
+      const sample = [
+        "# Constitution",
+        "",
+        "## 1. Other Section",
+        "- `OTHER_RULE`: `not_a_forbidden_rule` — Should be ignored",
+        "",
+        "## Forbidden Patterns",
+        "- `REAL_RULE`: `real_pattern` — Should be parsed",
+      ].join("\n");
+
+      await fs.writeFile(tempConstitution, sample, "utf-8");
+      try {
+        const result = await parseConstitution(tempConstitution);
+        expect(result.rules).toHaveLength(1);
+        expect(result.rules[0].id).toBe("REAL_RULE");
+        expect(result.rules.find((r) => r.id === "OTHER_RULE")).toBeUndefined();
+      } finally {
+        await fs.rm(tempConstitution, { force: true });
+      }
     });
   });
 
@@ -134,6 +200,26 @@ describe("Markdown Utilities (src/utils/markdown.ts)", () => {
       // Because some tasks are pending and some files missing, isValid should be false
       expect(result.isValid).toBe(false);
       expect(result.warnings.length).toBeGreaterThan(0);
+    });
+
+    it("parses tasks.md with 2 arguments (tasksPath, workspaceRoot) and detects src/existing.ts vs src/missing.ts", async () => {
+      const tasksPath = path.join(
+        mockRepoPath,
+        "specs/001-sample-feature/tasks.md"
+      );
+
+      const items = await parseTasksFile(tasksPath, mockRepoPath);
+      expect(items.length).toBeGreaterThanOrEqual(3);
+
+      const existingTask = items.find((t) => t.referencedFiles.includes("src/existing.ts"));
+      expect(existingTask).toBeDefined();
+      expect(existingTask?.fileExistence["src/existing.ts"]).toBe(true);
+      expect(existingTask?.missingFiles).not.toContain("src/existing.ts");
+
+      const missingTask = items.find((t) => t.referencedFiles.includes("src/missing.ts"));
+      expect(missingTask).toBeDefined();
+      expect(missingTask?.fileExistence["src/missing.ts"]).toBe(false);
+      expect(missingTask?.missingFiles).toContain("src/missing.ts");
     });
   });
 

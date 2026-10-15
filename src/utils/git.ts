@@ -1,7 +1,7 @@
 /**
  * Pure read-only Git subprocess wrapper for spec-guard-mcp.
- * Strictly uses execFile with argument arrays (zero shell interpolation)
- * and enforces zero external protocol imports.
+ * Strictly uses promisified child_process.execFile("git", [...args], { cwd: workspacePath })
+ * exclusively (zero shell interpolation) and enforces zero external protocol imports.
  */
 
 import { promisify } from "node:util";
@@ -13,21 +13,11 @@ const execFile = promisify(execFileCallback);
 
 /**
  * Retrieves the active Git branch name for a validated workspace directory.
- * Gracefully handles unborn branches (no commits yet) and detached HEAD states.
+ * Uses `git rev-parse --abbrev-ref HEAD` with fallback to `git branch --show-current`
+ * and graceful fallback to "HEAD" for detached or unborn branch states.
  */
 export async function getCurrentBranch(workspacePath: string): Promise<string> {
-  try {
-    const { stdout } = await execFile("git", ["branch", "--show-current"], {
-      cwd: workspacePath,
-    });
-    const branch = stdout.trim();
-    if (branch.length > 0) {
-      return branch;
-    }
-  } catch {
-    // Fall back to alternative queries if show-current fails
-  }
-
+  // 1. Primary query: git rev-parse --abbrev-ref HEAD
   try {
     const { stdout } = await execFile("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
       cwd: workspacePath,
@@ -40,6 +30,20 @@ export async function getCurrentBranch(workspacePath: string): Promise<string> {
     // If unborn branch (no commits yet), rev-parse --abbrev-ref HEAD might fail
   }
 
+  // 2. Fallback query: git branch --show-current
+  try {
+    const { stdout } = await execFile("git", ["branch", "--show-current"], {
+      cwd: workspacePath,
+    });
+    const branch = stdout.trim();
+    if (branch.length > 0) {
+      return branch;
+    }
+  } catch {
+    // Fall back to alternative queries if show-current fails
+  }
+
+  // 3. Fallback: symbolic-ref
   try {
     const { stdout } = await execFile("git", ["symbolic-ref", "--short", "HEAD"], {
       cwd: workspacePath,
@@ -49,18 +53,19 @@ export async function getCurrentBranch(workspacePath: string): Promise<string> {
       return symRef;
     }
   } catch {
-    // Fall back
+    // Fall back to HEAD
   }
 
   return "HEAD";
 }
 
 /**
- * Retrieves an array of staged file paths relative to the repository root.
+ * Retrieves an array of staged file paths relative to the repository root
+ * using `git diff --cached --name-only`.
  */
 export async function getStagedFiles(workspacePath: string): Promise<string[]> {
   try {
-    const { stdout } = await execFile("git", ["diff", "--name-only", "--cached"], {
+    const { stdout } = await execFile("git", ["diff", "--cached", "--name-only"], {
       cwd: workspacePath,
     });
     return stdout
@@ -73,11 +78,12 @@ export async function getStagedFiles(workspacePath: string): Promise<string[]> {
 }
 
 /**
- * Retrieves modified, deleted, and untracked file paths in the working tree.
+ * Retrieves modified, deleted, and untracked file paths in the working tree
+ * using `git status --porcelain`.
  */
-export async function getWorkingTreeStatus(workspacePath: string): Promise<string[]> {
+export async function getWorkingTreeFiles(workspacePath: string): Promise<string[]> {
   try {
-    const { stdout } = await execFile("git", ["status", "--porcelain=v1"], {
+    const { stdout } = await execFile("git", ["status", "--porcelain"], {
       cwd: workspacePath,
     });
     return stdout
@@ -100,37 +106,64 @@ export async function getWorkingTreeStatus(workspacePath: string): Promise<strin
 }
 
 /**
- * Retrieves the unified staged git diff, safely truncated to maxChars.
- * Appends a prominent notice and sets truncated: true if the threshold is exceeded.
+ * Backwards compatibility alias for getWorkingTreeFiles.
+ */
+export const getWorkingTreeStatus = getWorkingTreeFiles;
+
+/**
+ * Retrieves the unified staged git diff and list of staged file paths.
+ * Truncates diff output at MAX_DIFF_CHARS (15,000) and sets truncated = true when exceeded.
  */
 export async function getStagedDiff(
   workspacePath: string,
   maxChars: number = MAX_DIFF_CHARS
-): Promise<GitDiffResult> {
+): Promise<GitDiffResult & { stagedFiles: string[] }> {
+  let stagedFiles: string[] = [];
   try {
-    const { stdout } = await execFile("git", ["diff", "--cached", "-U3"], {
-      cwd: workspacePath,
-      maxBuffer: 15 * 1024 * 1024,
-    });
+    const { stdout: filesStdout } = await execFile(
+      "git",
+      ["diff", "--cached", "--name-only"],
+      { cwd: workspacePath }
+    );
+    stagedFiles = filesStdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+  } catch {
+    stagedFiles = [];
+  }
 
-    if (stdout.length > maxChars) {
+  try {
+    const { stdout: diffStdout } = await execFile(
+      "git",
+      ["diff", "--cached", "-U3"],
+      {
+        cwd: workspacePath,
+        maxBuffer: 15 * 1024 * 1024,
+      }
+    );
+
+    if (diffStdout.length > maxChars) {
       const truncatedDiff =
-        stdout.slice(0, maxChars) +
+        diffStdout.slice(0, maxChars) +
         "\n\n[Diff truncated: exceeded character limit]";
       return {
         diff: truncatedDiff,
         truncated: true,
+        stagedFiles,
       };
     }
 
     return {
-      diff: stdout,
+      diff: diffStdout,
       truncated: false,
+      stagedFiles,
     };
   } catch {
     return {
       diff: "",
       truncated: false,
+      stagedFiles: [],
     };
   }
 }
