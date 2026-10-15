@@ -51,12 +51,24 @@ export interface DiffViolation {
 
 export type TaskStatus = "completed" | "pending" | "in_progress" | "failed";
 
-export interface TaskVerificationResult {
-  taskId: string;
+export interface TaskItem {
+  id: string;
   description: string;
   status: TaskStatus;
   line?: number;
+  referencedFiles: string[];
+  fileExistence: Record<string, boolean>;
   details?: string;
+}
+
+export interface TaskVerificationResult {
+  featureId: string;
+  totalTasks: number;
+  completedTasks: number;
+  pendingTasks: number;
+  tasks: TaskItem[];
+  isValid: boolean;
+  warnings: string[];
 }
 
 export type RuleSeverity = "mandatory" | "recommended";
@@ -67,4 +79,41 @@ export interface ConstitutionRule {
   title: string;
   statement: string;
   severity: RuleSeverity;
+}
+
+export interface GitDiffResult {
+  diff: string;
+  truncated: boolean;
+}
+
+export interface ForbiddenPatternRule {
+  id: string;
+  pattern: string;
+  regex?: RegExp;
+  description: string;
+  severity?: ViolationSeverity;
+}
+
+export interface ParsedConstitution {
+  rules: ForbiddenPatternRule[];
+  rawContent: string;
+  frontmatter?: Record<string, unknown>;
+}
+
+export interface AddedDiffLine {
+  file: string;
+  line: number;
+  content: string;
+}
+
+export interface DiffValidationResult {
+  isValid: boolean;
+  violations: DiffViolation[];
+  checkedLinesCount: number;
+  summary: {
+    totalViolations: number;
+    errorCount: number;
+    warningCount: number;
+  };
+  truncated?: boolean;
 }
