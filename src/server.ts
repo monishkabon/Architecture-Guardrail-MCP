@@ -1,6 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { DEFAULT_SERVER_CONFIG } from "./config/index.js";
 import { registerPingTool } from "./tools/ping.js";
+import { registerConstitutionResource } from "./resources/constitution.js";
+import { registerActiveSpecResource } from "./resources/activeSpec.js";
 import type { ServerConfig } from "./types/index.js";
 
 export function createMcpServer(customConfig?: Partial<ServerConfig>): McpServer {
@@ -14,5 +16,14 @@ export function createMcpServer(customConfig?: Partial<ServerConfig>): McpServer
   // Register foundational tools
   registerPingTool(server);
 
+  // Register Phase 4 MCP Resources
+  registerConstitutionResource(server);
+  registerActiveSpecResource(server);
+
   return server;
 }
+
+/**
+ * Backward compatibility alias for createMcpServer.
+ */
+export const createServer = createMcpServer;
