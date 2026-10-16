@@ -16,6 +16,7 @@ export const CANDIDATE_SPECS_DIRS = [
 
 export const MAX_DIFF_CHARS = 15000;
 export const MAX_FILE_PREVIEW_CHARS = 10000;
+export const MAX_RESOURCE_CHARS = 30000;
 
 export const FORBIDDEN_STDOUT_PATTERNS = [
   ["console", "log"].join("."),
@@ -34,6 +35,7 @@ export interface SpecKitDefaults {
   readonly candidateSpecsDirs: readonly string[];
   readonly maxDiffChars: number;
   readonly maxFilePreviewChars: number;
+  readonly maxResourceChars: number;
   readonly forbiddenStdoutPatterns: readonly string[];
 }
 
@@ -44,5 +46,6 @@ export const DEFAULT_SPECKIT_CONFIG: SpecKitDefaults = {
   candidateSpecsDirs: CANDIDATE_SPECS_DIRS,
   maxDiffChars: MAX_DIFF_CHARS,
   maxFilePreviewChars: MAX_FILE_PREVIEW_CHARS,
+  maxResourceChars: MAX_RESOURCE_CHARS,
   forbiddenStdoutPatterns: FORBIDDEN_STDOUT_PATTERNS,
 };
