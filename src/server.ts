@@ -1,6 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { DEFAULT_SERVER_CONFIG } from "./config/index.js";
 import { registerPingTool } from "./tools/ping.js";
+import { registerValidateDiffTool } from "./tools/validateDiff.js";
+import { registerCheckTasksTool } from "./tools/checkTasks.js";
+import { registerScaffoldModuleTool } from "./tools/scaffoldModule.js";
 import { registerConstitutionResource } from "./resources/constitution.js";
 import { registerActiveSpecResource } from "./resources/activeSpec.js";
 import type { ServerConfig } from "./types/index.js";
@@ -15,6 +18,11 @@ export function createMcpServer(customConfig?: Partial<ServerConfig>): McpServer
 
   // Register foundational tools
   registerPingTool(server);
+
+  // Register Phase 5 MCP Tools
+  registerValidateDiffTool(server);
+  registerCheckTasksTool(server);
+  registerScaffoldModuleTool(server);
 
   // Register Phase 4 MCP Resources
   registerConstitutionResource(server);

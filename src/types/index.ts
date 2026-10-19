@@ -67,9 +67,27 @@ export interface TaskVerificationResult {
   totalTasks: number;
   completedTasks: number;
   pendingTasks: number;
+  missingFilesCount?: number;
   tasks: TaskItem[];
   isValid: boolean;
+  passed?: boolean;
   warnings: string[];
+  summary?: string;
+}
+
+export interface FeatureScaffoldResult {
+  created: boolean;
+  featureId: string;
+  featureDir: string;
+  specPath: string;
+  tasksPath: string;
+  summary: string;
+}
+
+export interface ToolErrorPayload {
+  passed: false;
+  error: string;
+  remediation: string;
 }
 
 export type RuleSeverity = "mandatory" | "recommended";
