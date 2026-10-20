@@ -6,6 +6,7 @@ import { registerCheckTasksTool } from "./tools/checkTasks.js";
 import { registerScaffoldModuleTool } from "./tools/scaffoldModule.js";
 import { registerConstitutionResource } from "./resources/constitution.js";
 import { registerActiveSpecResource } from "./resources/activeSpec.js";
+import { registerPreCommitAuditPrompt } from "./prompts/preCommitAudit.js";
 import type { ServerConfig } from "./types/index.js";
 
 export function createMcpServer(customConfig?: Partial<ServerConfig>): McpServer {
@@ -27,6 +28,9 @@ export function createMcpServer(customConfig?: Partial<ServerConfig>): McpServer
   // Register Phase 4 MCP Resources
   registerConstitutionResource(server);
   registerActiveSpecResource(server);
+
+  // Register Phase 6 MCP Workflow Prompts
+  registerPreCommitAuditPrompt(server);
 
   return server;
 }

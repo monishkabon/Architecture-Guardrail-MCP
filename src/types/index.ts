@@ -141,3 +141,20 @@ export interface DiffValidationResult {
   summaryText?: string;
   truncated?: boolean;
 }
+
+export interface PreCommitAuditArgs {
+  workspacePath?: string;
+  featureId?: string;
+}
+
+export interface PreCommitAuditPromptResult {
+  [key: string]: unknown;
+  description: string;
+  messages: Array<{
+    role: "user";
+    content: {
+      type: "text";
+      text: string;
+    };
+  }>;
+}
